@@ -20,7 +20,7 @@ import google.auth.transport.requests
 # ----------------------|google login config|----------------------
 os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"  # wyłącza korzystanie z https
 
-GOOGLE_CLIENT_ID = "831052157195-g6t6g449gue6c50c2032flbjvjir8t47.apps.googleusercontent.com"
+
 client_secrets_file = os.path.join(
     pathlib.Path(__file__).parent, "client_secret.json")
 
@@ -33,10 +33,6 @@ flow = Flow.from_client_secrets_file(
 )
 # ------------------------------------------------------------------
 
-# configure({
-#   "mode": "sandbox", # sandbox or live
-#   "client_id": "EBWKjlELKMYqRNQ6sYvFo64FtaRLRR5BdHEESmha49TM",
-#   "client_secret": "EO422dn3gQLgDbuwqTjzrFgFtaRLRR5BdHEESmha49TM" })
 
 app = Flask(__name__)
 
