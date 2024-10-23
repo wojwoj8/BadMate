@@ -6,6 +6,9 @@ from addfunc import login_required, startform_required, premium_required, passwo
 
 from paypalrestsdk import configure, Payment
 
+#for xss demonstration
+from jinja2 import Environment, FileSystemLoader
+
 from datetime import datetime, timedelta
 
 import os
@@ -18,28 +21,33 @@ from pip._vendor import cachecontrol
 import google.auth.transport.requests
 
 # ----------------------|google login config|----------------------
-os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"  # wyłącza korzystanie z https
+# os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"  # wyłącza korzystanie z https
 
 
-client_secrets_file = os.path.join(
-    pathlib.Path(__file__).parent, "client_secret.json")
+# client_secrets_file = os.path.join(
+#     pathlib.Path(__file__).parent, "client_secret.json")
 
-flow = Flow.from_client_secrets_file(
-    client_secrets_file=client_secrets_file,
-    scopes=["https://www.googleapis.com/auth/userinfo.profile",
-            "https://www.googleapis.com/auth/userinfo.email", "openid"],
-    # redirect_uri="https://weightmate.onrender.com"
-    redirect_uri="https://weightmate.onrender.com/callback"
-)
+# flow = Flow.from_client_secrets_file(
+#     client_secrets_file=client_secrets_file,
+#     scopes=["https://www.googleapis.com/auth/userinfo.profile",
+#             "https://www.googleapis.com/auth/userinfo.email", "openid"],
+#     # redirect_uri="https://weightmate.onrender.com"
+#     redirect_uri="https://weightmate.onrender.com/callback"
+# )
 # ------------------------------------------------------------------
 
 
 app = Flask(__name__)
 
+# FOR XSS
+app.jinja_env.autoescape = False
 # Configure session to use filesystem (instead of signed cookies)
 app.config["SESSION_PERMANENT"] = False
 app.config["SESSION_TYPE"] = "filesystem"
 # app.run(debug=True)
+env = Environment(loader=FileSystemLoader('templates'), autoescape=False)
+template = env.get_template('layout.html')
+# rendered_template = template.render(x='<script>alert("XSS Attack")</script>')
 Session(app)
 # user database
 udb = SQL("sqlite:///users.db")
@@ -228,7 +236,7 @@ def register():
         if len(rows) != 0:
             return render_template("register.html", uname=uname)
 
-        hpw = generate_password_hash(request.form.get("password"))
+        hpw = request.form.get("password")
         udb.execute(
             "INSERT INTO users (username, hash) VALUES (?, ?)", uname, hpw)
         id = udb.execute("SELECT id FROM users WHERE (username = ?)", uname)
@@ -246,20 +254,26 @@ def register():
         return render_template("register.html")
 
 
+
+# FOR SQL INJECTION
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if session.get("user_id") is not None:
         return redirect("/")
 
     if request.method == "POST":
-        if not request.form.get("username"):
-            return render_template("login.html")
-        elif not request.form.get("password"):
-            return render_template("login.html")
+        # if not request.form.get("username"):
+        #     return render_template("login.html")
+        # elif not request.form.get("password"):
+        #     return render_template("login.html")
 
+        password = request.form.get("password")
+        username = request.form.get("username")
         rows = udb.execute(
-            "SELECT * FROM users WHERE username = ?", request.form.get("username"))
-        if len(rows) != 1 or not check_password_hash(rows[0]["hash"], request.form.get("password")):
+            f"SELECT * FROM users WHERE username = '{username}' AND hash = '{password}'")
+        
+        print(rows)
+        if len(rows) != 1:
             # for printing error on page
             x = 1
             return render_template("login.html", x=x)
@@ -269,6 +283,9 @@ def login():
         session["age"] = rows[0]["age"]
         session["email"] = None
         session["premium"] = rows[0]["premium"]
+
+        # FOR TESTS
+        session["premium"] = 1
 
         return redirect("/")
     else:
@@ -556,7 +573,7 @@ def modprof():
         elif not conf:
             return redirect("/profile")
         else:
-            hpw = generate_password_hash(pwd)
+            hpw = pwd
             udb.execute("UPDATE users SET hash = ? WHERE id = ?",
                         hpw, session["user_id"])
 
