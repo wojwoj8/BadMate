@@ -39,7 +39,7 @@ import google.auth.transport.requests
 
 app = Flask(__name__)
 
-# FOR XSS
+#XSS
 app.jinja_env.autoescape = False
 # Configure session to use filesystem (instead of signed cookies)
 app.config["SESSION_PERMANENT"] = False
@@ -231,14 +231,23 @@ def register():
             return render_template("register.html")
         elif request.form.get("password") != request.form.get("confirmation"):
             return render_template("register.html")
+
+        
+
         uname = request.form.get("username")
         rows = udb.execute("SELECT * FROM users WHERE username = ?", uname)
         if len(rows) != 0:
             return render_template("register.html", uname=uname)
 
         hpw = request.form.get("password")
+
+        # MASS ASSIGNMENT
+        admin = False
+        if request.form.get("admin"):
+            admin = True
         udb.execute(
-            "INSERT INTO users (username, hash) VALUES (?, ?)", uname, hpw)
+            "INSERT INTO users (username, hash, admin) VALUES (?, ?, ?)", uname, hpw, admin)
+
         id = udb.execute("SELECT id FROM users WHERE (username = ?)", uname)
         prem = udb.execute(
             "SELECT premium FROM users WHERE (username = ?)", uname)
@@ -247,6 +256,9 @@ def register():
         session["user_id"] = id[0]["id"]
         print(id)
         session["premium"] = prem[0]["premium"]
+
+        # MASS ASSIGNMENT
+        session["admin"] = admin
         print(session)
         return redirect("/")
 
@@ -255,7 +267,7 @@ def register():
 
 
 
-# FOR SQL INJECTION
+#SQL INJECTION
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if session.get("user_id") is not None:
@@ -283,9 +295,10 @@ def login():
         session["age"] = rows[0]["age"]
         session["email"] = None
         session["premium"] = rows[0]["premium"]
-
+        session["admin"] = rows[0]["admin"]
         # FOR TESTS
-        session["premium"] = 1
+        # session["premium"] = 1
+        print(session)
 
         return redirect("/")
     else:
@@ -635,7 +648,9 @@ def changoal():
 @app.route("/food", methods=["GET", "POST"])
 @login_required
 @startform_required
-@premium_required
+
+#Improper Access Control
+# @premium_required
 def food():
     print(session)
     if request.method == "POST":
@@ -717,6 +732,20 @@ def update_payment():
     udb.execute("UPDATE users SET premium = 1 WHERE id = ?",
                 session["user_id"])
     return redirect("/")
+
+
+#Improper Access Control
+#Insecure direct object references (IDOR)
+@app.route("/admin", methods=["GET"])
+@login_required
+def admin():
+    # print("test1")
+    # x = udb.execute("SELECT * FROM users WHERE id = ?", session["user_id"])
+    data = udb.execute("SELECT * FROM users")
+    # if x[0]["admin"] == True:
+    #     print("tes2")
+    return render_template("admin.html", data=data)
+    # return redirect("/")
 
 if __name__ == "__main__":
     app.run(debug=True)
